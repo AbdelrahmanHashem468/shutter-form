@@ -138,15 +138,27 @@ function generateExcel(mode){
   status.textContent=`تم تنزيل ملف Excel بعدد ${records.length} صفوف. لإرساله في واتساب، أرفقه من مجلد التنزيلات.`;
  }catch(e){status.textContent=e.message;status.style.color='#a12525'}
 }
+function makeCsv(records){
+ const rows=[],customer=(document.getElementById('customer').value||'').trim(),phone=(document.getElementById('phone').value||'').trim();
+ if(customer)rows.push(['اسم العميل / الشركة',customer]);
+ if(phone)rows.push(['رقم الهاتف',phone]);
+ if(rows.length)rows.push([]);
+ rows.push(...makeExportMatrix(records));
+ const cell=v=>{const s=String(v??'');return /[",\r\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s};
+ return '﻿'+rows.map(r=>r.map(cell).join(',')).join('\r\n');
+}
 async function shareViaWhatsApp(){
  const out=generateExcel('share');
  if(!out)return;
  const status=document.getElementById('status');
- const file=new File([out.blob],out.fileName,{type:out.blob.type});
+ const android=/Android/i.test(navigator.userAgent);
+ const file=android
+  ?new File([makeCsv(out.records)],out.fileName.replace(/\.xlsx$/,'.csv'),{type:'text/csv'})
+  :new File([out.blob],out.fileName,{type:out.blob.type});
  if(navigator.canShare&&navigator.canShare({files:[file]})){
   try{
    await navigator.share({files:[file],title:'نموذج بيانات الشيش'});
-   status.textContent='تمت مشاركة ملف Excel.';
+   status.textContent='تمت مشاركة الملف.';
    return;
   }catch(e){
    if(e.name==='AbortError')return;
@@ -155,9 +167,10 @@ async function shareViaWhatsApp(){
  }
  generateExcel();
  status.textContent='تم تنزيل ملف Excel. اضغط "فتح واتساب" ثم أرفق الملف من مجلد التنزيلات.';
- const mobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+ const ios=/iPhone|iPad|iPod/i.test(navigator.userAgent);
  const wa=document.getElementById('openWa');
- wa.href=mobile?'whatsapp://send':'https://web.whatsapp.com/';
+ wa.href=android?'intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;end':ios?'whatsapp://send':'https://web.whatsapp.com/';
+ wa.target=android||ios?'_self':'_blank';
  wa.hidden=false;
 }
 document.getElementById('export').addEventListener('click',generateExcel);
